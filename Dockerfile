@@ -29,4 +29,4 @@ COPY . .
 EXPOSE 10000
 
 # Paso 8: El comando final para ejecutar tu servidor cuando el contenedor se inicie.
-CMD ["python", "idioma_server_websocket.py"]
+CMD ["python", "idioma_server.py"]
