@@ -6,9 +6,10 @@ import speech_recognition as sr
 from googletrans import Translator
 from gtts import gTTS
 import logging
+from http import HTTPStatus
 
 # Configurar logging para ver mensajes en Render
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # --- INICIALIZACIÓN DE HERRAMIENTAS ---
 # Estas herramientas son pesadas, así que las inicializamos una sola vez.
@@ -19,7 +20,7 @@ translator = Translator()
 # Usamos un set porque es más eficiente para añadir y quitar.
 CONNECTED_CLIENTS = set()
 
-# --- FUNCIONES DE LÓGICA (Tu código original, sin cambios) ---
+# --- FUNCIONES DE LÓGICA ---
 def traducir_audio_stream(audio_bytes):
     lang_codes = (('en-US', 'en'), ('es-ES', 'es'))
     lang1_stt, lang1_tts = lang_codes[0]
@@ -63,7 +64,8 @@ def traducir_audio_stream(audio_bytes):
         logging.error(f"!! Error en el proceso de traducción: {e}")
         return None
 
-# --- MANEJO DE WEBSOCKETS ---
+# --- MANEJO DE WEBSOCKETS Y HEALTH CHECK ---
+
 async def handle_client(websocket, path):
     """
     Gestiona la conexión de un cliente WebSocket.
@@ -76,17 +78,14 @@ async def handle_client(websocket, path):
         async for message in websocket:
             logging.info(f"-> Recibidos {len(message)} bytes de audio.")
             
-            # El mensaje ya es el audio en bytes, no necesitamos recibir un header.
+            # El mensaje ya es el audio en bytes.
             translated_audio = traducir_audio_stream(message)
             
             if translated_audio:
                 logging.info(f"-> Enviando {len(translated_audio)} bytes de audio traducido.")
                 
                 # Creamos una lista de tareas de envío para todos los OTROS clientes.
-                tasks = []
-                for client in CONNECTED_CLIENTS:
-                    if client != websocket:
-                        tasks.append(client.send(translated_audio))
+                tasks = [client.send(translated_audio) for client in CONNECTED_CLIENTS if client != websocket]
                 
                 # Ejecutamos todas las tareas de envío en paralelo.
                 await asyncio.gather(*tasks)
@@ -98,19 +97,28 @@ async def handle_client(websocket, path):
         CONNECTED_CLIENTS.remove(websocket)
         logging.info(f"Clientes activos: {len(CONNECTED_CLIENTS)}")
 
-async def start_server():
+async def health_check(path, request_headers):
+    """
+    Responde a las comprobaciones de estado de Render para que no se apague.
+    """
+    if path == "/healthz":
+        return http.HTTPStatus.OK, [], b"OK"
+
+async def main():
     """ 
-    Inicia el servidor WebSocket.
+    Inicia el servidor principal, combinando el health check y el servidor WebSocket.
     """
     HOST = '0.0.0.0'
-    PORT = int(os.environ.get('PORT', 8765)) # 8765 para pruebas locales
+    PORT = int(os.environ.get('PORT', 8765))
 
-    # websockets.serve inicia el servidor de manera asíncrona
-    async with websockets.serve(handle_client, HOST, PORT):
+    async with websockets.serve(
+        handle_client,
+        HOST,
+        PORT,
+        process_request=health_check
+    ):
         logging.info(f"✅ [SERVIDOR WEBSOCKET INICIADO] Escuchando en {HOST}:{PORT}")
-        # Mantiene el servidor corriendo indefinidamente
-        await asyncio.Future()
+        await asyncio.Future()  # Mantiene el servidor corriendo indefinidamente
 
 if __name__ == "__main__":
-    # asyncio.run() ejecuta la función asíncrona principal
-    asyncio.run(start_server())
+    asyncio.run(main())
