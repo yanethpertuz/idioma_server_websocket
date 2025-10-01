@@ -98,13 +98,20 @@ async def handle_client(websocket, path):
             CONNECTED_CLIENTS.remove(websocket)
         logging.info(f"Clientes activos: {len(CONNECTED_CLIENTS)}")
 
+# NUEVA FUNCIÓN para manejar la comprobación de estado de Render
 async def health_check(path, request_headers):
+    # Si Render pregunta por esta ruta específica, respondemos que todo está bien.
     if path == "/healthz":
         return HTTPStatus.OK, [], b"OK"
+    # Si no, no hacemos nada y permitimos que la conexión WebSocket continúe.
+    return None
 
 async def main():
     HOST = '0.0.0.0'
     PORT = int(os.environ.get('PORT', 8765))
+    
+    # Añadimos 'process_request=health_check' para que el servidor
+    # use nuestra nueva función antes de intentar una conexión WebSocket.
     async with websockets.serve(handle_client, HOST, PORT, process_request=health_check):
         logging.info(f"✅ [SERVIDOR WEBSOCKET INICIADO] Escuchando en {HOST}:{PORT}")
         await asyncio.Future()
