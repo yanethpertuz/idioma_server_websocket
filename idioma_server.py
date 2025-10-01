@@ -12,13 +12,12 @@ from http import HTTPStatus
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # --- INICIALIZACIÓN DE HERRAMIENTAS ---
+# Es crucial envolver esto en un try-except. Si falla aquí, el servidor no puede arrancar.
 try:
     r = sr.Recognizer()
     translator = Translator()
 except Exception as e:
     logging.critical(f"FATAL: No se pudieron inicializar las librerías de traducción: {e}")
-    # Si las herramientas principales no se inician, el servidor no puede funcionar.
-    # Es mejor que se detenga aquí para que el error sea obvio en los logs.
     raise
 
 CONNECTED_CLIENTS = set()
@@ -78,7 +77,7 @@ def traducir_audio_stream(audio_bytes):
         logging.error(f"!! Error durante la síntesis de voz con gTTS: {e}")
         return None
 
-# --- MANEJO DE WEBSOCKETS (Sin cambios) ---
+# --- MANEJO DE WEBSOCKETS ---
 async def handle_client(websocket, path):
     logging.info(f"[NUEVA CONEXIÓN] Cliente conectado desde {websocket.remote_address}")
     CONNECTED_CLIENTS.add(websocket)
