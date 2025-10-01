@@ -94,7 +94,8 @@ async def handle_client(websocket, path):
         logging.info(f"[CONEXIÓN CERRADA] Cliente desconectado: {e}")
     finally:
         # Nos aseguramos de quitar al cliente del conjunto al desconectarse.
-        CONNECTED_CLIENTS.remove(websocket)
+        if websocket in CONNECTED_CLIENTS:
+            CONNECTED_CLIENTS.remove(websocket)
         logging.info(f"Clientes activos: {len(CONNECTED_CLIENTS)}")
 
 async def health_check(path, request_headers):
@@ -102,7 +103,8 @@ async def health_check(path, request_headers):
     Responde a las comprobaciones de estado de Render para que no se apague.
     """
     if path == "/healthz":
-        return http.HTTPStatus.OK, [], b"OK"
+        # CORRECCIÓN: Se debe usar 'HTTPStatus' directamente, no 'http.HTTPStatus'
+        return HTTPStatus.OK, [], b"OK"
 
 async def main():
     """ 
@@ -122,3 +124,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
